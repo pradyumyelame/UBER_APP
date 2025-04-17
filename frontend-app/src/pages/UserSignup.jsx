@@ -24,10 +24,15 @@ const UserSignup = () => {
   const submitHandler = async (e) => {
     e.preventDefault()
     const newUser = {
-      fullname: `${firstName} ${lastName}`,
+      fullname: {
+        firstname: firstName,
+        lastname: lastName
+      },
       email: email,
       password: password
     }
+    
+    // console.log("📦 Sending user payload:", newUser);
 
     const response = await axios.post(`${import.meta.env.VITE_BASE_URL}/users/register`, newUser)
 

@@ -1,7 +1,7 @@
+const userModel = require('../models/user.models');
+const userService = require('../services/user.service');
 const { validationResult } = require('express-validator');
-const userModel = require('../models/user.models.js');
-const useService = require('../services/user.service.js')
-const blackListTokenModel = require('../models/blackListToken.models.js')
+const blackListTokenModel = require('../models/blackListToken.models');
 
 module.exports.registerUser = async (req, res, next) => {
 
@@ -20,7 +20,7 @@ module.exports.registerUser = async (req, res, next) => {
 
     const hashedPassword = await userModel.hashPassword(password);
 
-    const user = await useService.createUser({
+    const user = await userService.createUser({
         firstname: fullname.firstname,
         lastname: fullname.lastname,
         email,
@@ -32,7 +32,7 @@ module.exports.registerUser = async (req, res, next) => {
     res.status(201).json({ token, user });
 
 
-};
+}
 
 module.exports.loginUser = async (req, res, next) => {
 
@@ -60,7 +60,7 @@ module.exports.loginUser = async (req, res, next) => {
     res.cookie('token', token);
 
     res.status(200).json({ token, user });
-};
+}
 
 module.exports.getUserProfile = async (req, res, next) => {
 
