@@ -1,160 +1,101 @@
-const rideModel = require('../models/ride.model');
-const mapService = require('./maps.service');
-const bcrypt = require('bcrypt');
-const crypto = require('crypto');
+const axios = require('axios');
+const captainModel = require('../models/captain.models');
+const Ride = require('../models/ride.model');
 
-async function getFare(pickup, destination) {
+const getAddressCoordinate = async (address) => {
+    if (!address) throw new Error('Address is required');
 
-    if (!pickup || !destination) {
-        throw new Error('Pickup and destination are required');
+    const apiKey = process.env.ORS_API_KEY;
+    const url = `https://api.openrouteservice.org/geocode/search?api_key=${apiKey}&text=${encodeURIComponent(address)}&boundary.country=IN`;
+
+    try {
+        const response = await axios.get(url);
+        const coordinates = response.data.features[0].geometry.coordinates;
+        return {
+            lat: coordinates[1],
+            lng: coordinates[0]
+        };
+    } catch (err) {
+        throw new Error('Failed to fetch coordinates');
     }
+};
 
-    const distanceTime = await mapService.getDistanceTime(pickup, destination);
+const getDistanceTime = async (originCoords, destinationCoords) => {
+    const apiKey = process.env.ORS_API_KEY;
 
+    try {
+        const response = await axios.get('https://api.openrouteservice.org/v2/directions/driving-car', {
+            params: {
+                api_key: apiKey,
+                start: `${originCoords.lng},${originCoords.lat}`,
+                end: `${destinationCoords.lng},${destinationCoords.lat}`
+            }
+        });
+
+        const segment = response.data.features[0].properties.segments[0];
+        return {
+            distance_meters: segment.distance,
+            duration_seconds: segment.duration
+        };
+    } catch (err) {
+        return {
+            distance_meters: 5000,
+            duration_seconds: 900
+        };
+    }
+};
+
+const calculateFare = (vehicleType, distance_meters) => {
+    const distance_km = distance_meters / 1000; // convert to km
     const baseFare = {
         auto: 30,
         car: 50,
         moto: 20
     };
-
     const perKmRate = {
         auto: 10,
         car: 15,
-        moto: 8
+        moto: 7
     };
 
-    const perMinuteRate = {
-        auto: 2,
-        car: 3,
-        moto: 1.5
-    };
+    return baseFare[vehicleType] + (distance_km * perKmRate[vehicleType]);
+};
 
 
+const getAutoCompleteSuggestions = async (input) => {
+    const apiKey = process.env.ORS_API_KEY;
+    const url = `https://api.openrouteservice.org/geocode/search?api_key=${apiKey}&text=${encodeURIComponent(input + ', India')}&boundary.country=IN`;
 
-    const fare = {
-        auto: Math.round(baseFare.auto + ((distanceTime.distance.value / 1000) * perKmRate.auto) + ((distanceTime.duration.value / 60) * perMinuteRate.auto)),
-        car: Math.round(baseFare.car + ((distanceTime.distance.value / 1000) * perKmRate.car) + ((distanceTime.duration.value / 60) * perMinuteRate.car)),
-        moto: Math.round(baseFare.moto + ((distanceTime.distance.value / 1000) * perKmRate.moto) + ((distanceTime.duration.value / 60) * perMinuteRate.moto))
-    };
-
-    return fare;
-
-
-}
-
-module.exports.getFare = getFare;
-
-
-function getOtp(num) {
-    function generateOtp(num) {
-        const otp = crypto.randomInt(Math.pow(10, num - 1), Math.pow(10, num)).toString();
-        return otp;
+    try {
+        const response = await axios.get(url);
+        return response.data?.features?.map(f => f.properties.label).filter(Boolean) || [];
+    } catch (err) {
+        throw new Error(`Failed to get address suggestions: ${err.message}`);
     }
-    return generateOtp(num);
-}
+};
 
+const getCaptainsInTheRadius = async (lat, lng, radius) => {
+    const captains = await captainModel.find({
+        location: {
+            $geoWithin: {
+                $centerSphere: [[lng, lat], radius / 6371] // Radius in kilometers
+            }
+        }
+    });
 
-module.exports.createRide = async ({
-    user, pickup, destination, vehicleType
-}) => {
-    if (!user || !pickup || !destination || !vehicleType) {
-        throw new Error('All fields are required');
-    }
+    return captains;
+};
 
-    const fare = await getFare(pickup, destination);
+const createRide = async (rideData) => {
+    const ride = new Ride(rideData);
+    return await ride.save();
+};
 
-
-
-    const ride = rideModel.create({
-        user,
-        pickup,
-        destination,
-        otp: getOtp(6),
-        fare: fare[ vehicleType ]
-    })
-
-    return ride;
-}
-
-module.exports.confirmRide = async ({
-    rideId, captain
-}) => {
-    if (!rideId) {
-        throw new Error('Ride id is required');
-    }
-
-    await rideModel.findOneAndUpdate({
-        _id: rideId
-    }, {
-        status: 'accepted',
-        captain: captain._id
-    })
-
-    const ride = await rideModel.findOne({
-        _id: rideId
-    }).populate('user').populate('captain').select('+otp');
-
-    if (!ride) {
-        throw new Error('Ride not found');
-    }
-
-    return ride;
-
-}
-
-module.exports.startRide = async ({ rideId, otp, captain }) => {
-    if (!rideId || !otp) {
-        throw new Error('Ride id and OTP are required');
-    }
-
-    const ride = await rideModel.findOne({
-        _id: rideId
-    }).populate('user').populate('captain').select('+otp');
-
-    if (!ride) {
-        throw new Error('Ride not found');
-    }
-
-    if (ride.status !== 'accepted') {
-        throw new Error('Ride not accepted');
-    }
-
-    if (ride.otp !== otp) {
-        throw new Error('Invalid OTP');
-    }
-
-    await rideModel.findOneAndUpdate({
-        _id: rideId
-    }, {
-        status: 'ongoing'
-    })
-
-    return ride;
-}
-
-module.exports.endRide = async ({ rideId, captain }) => {
-    if (!rideId) {
-        throw new Error('Ride id is required');
-    }
-
-    const ride = await rideModel.findOne({
-        _id: rideId,
-        captain: captain._id
-    }).populate('user').populate('captain').select('+otp');
-
-    if (!ride) {
-        throw new Error('Ride not found');
-    }
-
-    if (ride.status !== 'ongoing') {
-        throw new Error('Ride not ongoing');
-    }
-
-    await rideModel.findOneAndUpdate({
-        _id: rideId
-    }, {
-        status: 'completed'
-    })
-
-    return ride;
-}
+module.exports = {
+    getAddressCoordinate,
+    getDistanceTime,
+    calculateFare,
+    getAutoCompleteSuggestions,
+    getCaptainsInTheRadius,
+    createRide
+};

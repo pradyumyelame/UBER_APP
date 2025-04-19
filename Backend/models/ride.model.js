@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-
 const rideSchema = new mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
@@ -26,7 +25,7 @@ const rideSchema = new mongoose.Schema({
 
     status: {
         type: String,
-        enum: [ 'pending', 'accepted', "ongoing", 'completed', 'cancelled' ],
+        enum: ['pending', 'accepted', 'ongoing', 'completed', 'cancelled'],
         default: 'pending',
     },
 
@@ -50,9 +49,14 @@ const rideSchema = new mongoose.Schema({
 
     otp: {
         type: String,
-        select: false,
+        select: false, // This will ensure OTP isn't sent by default when querying
         required: true,
     },
-})
+
+    createdAt: {
+        type: Date,
+        default: Date.now,
+    },
+});
 
 module.exports = mongoose.model('ride', rideSchema);
