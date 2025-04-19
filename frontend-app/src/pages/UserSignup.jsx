@@ -16,7 +16,7 @@ const UserSignup = () => {
 
 
 
-  const { user, setUser } = useContext(UserDataContext);
+  const { user, setUser } = useContext(UserDataContext)
 
 
 
@@ -31,8 +31,6 @@ const UserSignup = () => {
       email: email,
       password: password
     }
-    
-    // console.log("📦 Sending user payload:", newUser);
 
     const response = await axios.post(`${import.meta.env.VITE_BASE_URL}/users/register`, newUser)
 

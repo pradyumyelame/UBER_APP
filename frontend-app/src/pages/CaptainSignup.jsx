@@ -38,7 +38,6 @@ const CaptainSignup = () => {
         vehicleType: vehicleType
       }
     }
-    console.log("Submitting:", captainData);
 
     const response = await axios.post(`${import.meta.env.VITE_BASE_URL}/captains/register`, captainData)
 

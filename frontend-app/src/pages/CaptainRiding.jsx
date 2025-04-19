@@ -3,7 +3,6 @@ import { Link, useLocation } from 'react-router-dom'
 import FinishRide from '../components/FinishRide'
 import { useGSAP } from '@gsap/react'
 import gsap from 'gsap'
-import LiveTracking from '../components/LiveTracking'
 
 const CaptainRiding = () => {
 
@@ -11,8 +10,6 @@ const CaptainRiding = () => {
     const finishRidePanelRef = useRef(null)
     const location = useLocation()
     const rideData = location.state?.ride
-
-
 
     useGSAP(function () {
         if (finishRidePanel) {
@@ -25,7 +22,6 @@ const CaptainRiding = () => {
             })
         }
     }, [ finishRidePanel ])
-
 
     return (
         <div className='h-screen relative flex flex-col justify-end'>
@@ -53,11 +49,6 @@ const CaptainRiding = () => {
                     ride={rideData}
                     setFinishRidePanel={setFinishRidePanel} />
             </div>
-
-            <div className='h-screen fixed w-screen top-0 z-[-1]'>
-                <LiveTracking />
-            </div>
-
         </div>
     )
 }
